@@ -1,0 +1,193 @@
+#!/bin/bash
+# edx -- gives a command-line interface to various useful edX tasks 
+# such as generate edx_marks.csv file, with Marmoset and Markus mark download
+# Original version by Le Zhang CS 136 (Winter 2024)
+
+export HOME=/u/$(whoami)/
+
+# get termcode and year
+CURR_TERMCODE=$(/u/isg/bin/termcode)
+CURR_SESSION=$(/u/isg/bin/termcode -l | awk '{print tolower(substr($0, 1, 1))}')
+CURR_YEAR=$(/u/isg/bin/termcode -l | awk '{print substr($0, length-1, length)}')
+
+# get current term repo path
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+TERM_FOLDER="${CURR_TERMCODE}_${CURR_SESSION}${CURR_YEAR}"
+PATH_CURRTERM="${HOME}marks/current_term"
+PATH_TERM_DATA="${HOME}marks/past_terms/${TERM_FOLDER}"
+PATH_MARMOSET="$PATH_TERM_DATA/marmoset_result"
+PATH_CLASSLIST="${PATH_TERM_DATA}/classlist.csv"
+PATH_DEFAULT_CONFIG="$SCRIPT_DIR/default_files/default_config"
+PATH_CONFIG="$PATH_TERM_DATA/config.csv"
+PATH_DEFAULT_REMARKS="$SCRIPT_DIR/default_files/default_remarks.csv"
+PATH_REMARKS="$PATH_TERM_DATA/remarks.csv"
+PATH_DEFAULT_EXEMPTIONS="$SCRIPT_DIR/default_files/default_exemptions.csv"
+PATH_EXEMPTIONS="$PATH_TERM_DATA/exemptions.csv"
+
+current_time=$(date +"%Y%m%d_%H%M%S")
+
+# initialize term repo
+init() {
+    # show current term
+    echo "Initialiing ${CURR_TERMCODE}"
+
+    # download latest classlist from odyssey
+    odyssey classlist --no-header > $PATH_CLASSLIST
+
+    # create repo
+    mkdir -p "$HOME/marks"
+    mkdir -p "$HOME/marks/past_terms"
+    mkdir -p "$PATH_TERM_DATA/gradebook"
+    mkdir -p "$PATH_TERM_DATA/marmoset_result"
+    mkdir -p "$PATH_TERM_DATA/markus_result"
+    mkdir -p "$PATH_TERM_DATA/midterm"
+    mkdir -p "$PATH_TERM_DATA/log"
+    mkdir -p "$PATH_TERM_DATA/source_file"
+
+    # copy configuration
+    if [ ! -e "$PATH_CONFIG" ]; then
+        cp -n "$PATH_DEFAULT_CONFIG" "$PATH_CONFIG"
+        echo "Copied config file from default."
+    else
+        echo "Config file already copied for $CURR_TERMCODE."
+    fi
+
+    # copy remarks
+    if [ ! -e "$PATH_REMARKS" ]; then
+        cp -n "$PATH_DEFAULT_REMARKS" "$PATH_REMARKS"
+        echo "Copied remarks.csv file from default."
+    else
+        echo "remarks.csv file already copied for $CURR_TERMCODE."
+    fi
+
+    # copy exemptions
+    if [ ! -e "$PATH_EXEMPTIONS" ]; then
+        cp -n "$PATH_DEFAULT_EXEMPTIONS" "$PATH_EXEMPTIONS"
+        echo "Copied exemptions.csv file from default."
+    else
+        echo "exemptions.csv file already copied for $CURR_TERMCODE."
+    fi
+
+    # copy exemptions
+    if [ -e "$PATH_CURRTERM" ]; then
+        rm $PATH_CURRTERM
+        ln -s "$PATH_TERM_DATA" "$PATH_CURRTERM"
+    else
+        ln -s "$PATH_TERM_DATA" "$PATH_CURRTERM"
+    fi
+}
+
+# reset term repo
+remarks() {
+    if [ ! -f "$PATH_REMARKS" ]; then
+        init
+    fi
+    vim $PATH_REMARKS
+}
+
+config() {
+    if [ ! -f "$PATH_CONFIG" ]; then
+        init
+    fi
+    vim $PATH_CONFIG
+}
+
+exemptions() {
+    if [ ! -f "$PATH_EXEMPTIONS" ]; then
+        init
+    fi
+    vim $PATH_EXEMPTIONS
+}
+
+update() {
+    odyssey classlist --no-header > $PATH_CLASSLIST
+    
+    if [[ -z "$1" ]]; then
+        marm2 -v -m 0
+        marm2 -v -m c
+    elif [[ "$1" == "-a" ]]; then
+        marm2 -v -m a
+    elif [[ "$1" =~ ^[0-9]+$ ]]; then
+        marm2 -v -m $1
+    else
+        echo "Invalid option for -u. Use '-u -a' for all, '-u' for current assignment to assignment 9, or '-d [number]' for a specific one."
+    fi
+
+}
+
+outof() {
+    if [[ -z "$1" ]]; then
+        marm2 -o c
+    elif [[ "$1" == "-a" ]]; then
+        marm2 -o a
+    elif [[ "$1" =~ ^[0-9]+$ ]]; then
+        marm2 -o $1
+    else
+        echo "Invalid option for -o. Use '-o -a' for all, '-o' for current assignment, or '-d [number]' for a specific one."
+    fi
+}
+
+# generate stats.txt to current term folder
+stats() {
+    echo "Generating stats.txt"
+    python3 /u2/cs136/bin/cron/stats.py > $PATH_TERM_DATA/stats.txt
+    echo "stats.txt Generated"
+}
+
+# generate edx_marks.csv file in current term folder
+generate() {
+    # make a backup of edx_marks.csv
+    edx_path="$PATH_TERM_DATA/edx_marks.csv"
+    log_path="$PATH_TERM_DATA/log/$current_time"
+    mkdir -p $log_path
+    backup_path="$log_path/edx_marks.csv"
+    log_path="$log_path/diff.txt"
+    if [ -f "$edx_path" ]; then
+        mv "$edx_path" "$backup_path"
+    fi
+
+    # generate edx_marks.csv
+    python3 ${SCRIPT_DIR}/modules/edx_generater.py
+
+    python3 ${SCRIPT_DIR}/modules/edx_diff.py $backup_path $edx_path $PATH_CLASSLIST > $log_path
+}
+
+case "$1" in
+    -c)
+        config
+        ;;
+    -e)
+        exemptions
+        ;;
+    -g)
+        generate
+        ;;
+    -i)
+        init
+        ;;
+    -o)
+        outof $2
+        ;;
+    -r)
+        remarks
+        ;;
+    -s)
+        stats
+        ;;
+    -u)
+        update $2
+        ;;
+    *)
+        echo "Usage: edx [-i]"
+        echo "Options:"
+        echo "  -c      Use vim to modify assignment config"
+        echo "  -e      Use vim to modify exemptions file"
+        echo "  -g      Generate edx_marks.csv file in current term folder"
+        echo "  -i      Initialize term repo current term folder"
+        echo "  -o      Check the total number of tests in perojet"
+        echo "  -r      Use vim to modify remark file"
+        echo "  -s      Generate stats.txt in current term folder"
+        echo "  -u      Update all valid grades report from marmoset (after deadline)"
+        echo "Current term repo is: ${PATH_CURRTERM}"
+        ;;
+esac

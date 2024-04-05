@@ -1,0 +1,242 @@
+#!/bin/bash
+# marm2 -- gives a command-line interface to various useful Marmoset tasks 
+# such as submission download, mark download
+# Original version (marm_sql) by Huma Zafar for CS 136
+# (marm_sql) Modified by Gareth Davies for CS 241 (Fall 2012)
+# (marm_sql) Modified by James Houle for CS 136 (Spring 2022)
+# (marm2) Crated by Le Zhang for CS 136 (Winter 2024)
+#  >>> Notes: Implement shell script-related databases 
+#             as python scripts to improve efficiency
+# Best viewed with a terminal width of 120 columns
+
+export HOME=/u/$(whoami)/
+CONFIGURE=
+DOWNLOAD=
+LATE=
+MARKS=
+TEST=
+
+CURRTERM=$(/u/isg/bin/termcode -l) # -l gives the term format that Marmoset uses
+CURR_TERMCODE=$(/u/isg/bin/termcode)
+CURR_SESSION=$(/u/isg/bin/termcode -l | awk '{print tolower(substr($0, 1, 1))}')
+CURR_YEAR=$(/u/isg/bin/termcode -l | awk '{print substr($0, length-1, length)}')
+COURSENAME=$(whoami | tr '[a-z]' '[A-Z]')
+COURSE_PK=$(echo "select course_pk \
+                    from courses \
+                    where semester='$CURRTERM' \
+                    and coursename='$COURSENAME';" | mysql -N --raw)
+
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+TERM_FOLDER="${CURR_TERMCODE}_${CURR_SESSION}${CURR_YEAR}"
+PATH_CURRTERM="${HOME}marks/current_term"
+PATH_TERM_DATA="${HOME}marks/past_terms/${TERM_FOLDER}"
+DEFAULT_STUDENTS_FILE_LOCATION=/tmp/${CURR_TERMCODE}"_students"
+STUDENTS=$DEFAULT_STUDENTS_FILE_LOCATION
+MARMOSET_RESULT_PATH="${PATH_TERM_DATA}/marmoset_result"
+SOURCE_FILE_PATH="${PATH_TERM_DATA}/source_file"
+
+# Display either a long or short usage message depending on if the -h option was given
+usage() {
+    if (( $LONGUSAGE )); then
+
+cat <<ENDUSAGE
+Usage:
+-h: Display this usage message.
+
+-m proj or -m assn: 
+    Download on-time marks for a given assignment or project.
+    "proj" is case-insensitive and may have any of the following forms:
+    * A string of the form AxPy, where x and y are integers.
+    * A string of the form AxBonus, where x is an integer.
+    * A string of the form Ax, where x is an integer. This will download
+      marks for every project from Assignment Ax.
+    * An integer x. This will download marks for every project from 
+      Assignment Ax.
+    If "proj" is the name of a single project, a .csv file called
+    project-[proj]-grades.csv is created in the current directory containing 
+    the marks for that project (for example, project-A7P7-grades.csv). If 
+    "proj" is the name of an assignment, .csv files will be created for each 
+    project in the assignment.
+
+    Examples:
+    marm2 -m A7P4
+    Downloads marks for Assignment 7, Problem 4 and saves them in a file
+    called project-A7P4-grades.csv.
+    marm2 -m a11bonus
+    Downloads marks for Assignment 11, Bonus Problem and saves them in a file
+    called project-a11bonus-grades.csv.
+    marm2 -m A6
+    Downloads marks for all Assignment 6 problems. For each problem, a .csv
+    file containing the marks is created in the current directory. 
+    marm2 -m 3
+    Downloads marks for all Assignment 3 problems. For each problem, a .csv
+    file containing the marks is created in the current directory.
+
+-d proj:
+    Download the best on-time submissions for a project. The submissions
+    are stored in a folder with the same name as the project in the current
+    directory. Unlike the -m option, "proj" can only be a string representing
+    a single project rather than a whole assignment. 
+
+-s file:
+    Specify a file containing a list of student IDs to process with -m or -d. 
+    By default, these options run for every student in the classlist.
+
+-t directory:
+    Specify a directory where you want to store result to used with -m or -d.
+    By default, these options run for
+    -m (marks download): $MARMOSET_RESULT_PATH
+    -d (source files download): $SOURCE_FILE_PATH
+
+-o proj OR a (all) OR c (current):
+    Quick way to get the project full marks.
+
+-c: Quick way to get the current course PK (unique number assigned to each 
+    offering of each course by Marmoset).
+
+-v: Enables verbose mode. The script will print extra information about
+    what it is doing. When used in conjunction with -d or -m, a download
+    progress indicator is displayed.
+ENDUSAGE
+
+    else
+
+cat <<ENDUSAGE
+Usage:
+-h: Display a more detailed usage message.
+-m proj or -m assn: 
+    Download on-time marks for a given assignment or project.
+    Examples:
+    marm2 -m A7P4 (Download marks for A7P4)
+    marm2 -m A6 (Download marks for all A6 projects)
+-d proj:
+    Download the best on-time submissions for a project. Unlike -m, this
+    cannot be used with assignments (only single projects).
+-s file:
+    Specify a file containing a list of student IDs to used with -m or -d.
+-t directory:
+    Specify a directory where you want to store result to used with -m or -d.
+-o proj OR a (all) OR c (current):
+    Quick way to get the project full marks.
+-c: Quick way to get the current course PK.
+-v: Enables verbose mode. With -m and -d, shows a download progress counter.
+ENDUSAGE
+
+    fi
+}
+
+# This function is like "exit" but it does cleanup before exiting.
+# Takes one parameter (the exit code).
+quit() {
+    # Remove the default student IDs file, if it was used
+    if (( $USE_DEFAULT_STUDENTS_FILE )); then
+        # We could just do "rm $STUDENTS" here but we want to be extra careful to not accidentally 
+        # delete a user-provided student IDs file...
+        rm $DEFAULT_STUDENTS_FILE_LOCATION >& /dev/null
+    fi
+    exit $1
+}
+
+#########################
+# Start of main program #
+#########################
+
+# If no command line arguments are provided, echo a usage message
+if [[ -z $1 ]]
+then
+    usage
+    quit 1
+fi
+
+# Set default values for flags
+VERBOSE=0                   # verbosity (if on, displays info about what the script is doing while it runs)
+LONGUSAGE=0                 # usage (by default, display the shorter usage message)
+USE_DEFAULT_STUDENTS_FILE=1 # by default run for all students in the classlist, otherwise use a provided list
+USE_DEFAULT_DEST_PATH=1
+
+# Read command line options and arguments
+while getopts :d:m:s:q:t:o:cvh opt; do
+    case $opt in
+        d)
+            # OPTARG is the project to download submissions for
+            DOWNLOAD=$OPTARG
+            ;;
+        m)
+            # OPTARG is the project/assignment to download marks for
+            MARKS=$OPTARG
+            ;;
+        s)
+            # We don't want to use the default student IDs file
+            USE_DEFAULT_STUDENTS_FILE=0
+            # We want to use the one provided as an argument
+            STUDENTS=$OPTARG
+            ;;
+        q)
+            # OPTARG is the SQL query to run
+            QUERY=$OPTARG
+            ;;
+        t)
+            USE_DEFAULT_DEST_PATH=0
+            DEST_PATH=$OPTARG
+            ;;
+        o)
+            # OPTARG is the assignment you want to check the full marks
+            OUTOF=$OPTARG
+            ;;
+        c)
+            # This option just returns the course PK
+            echo $COURSE_PK
+            quit 0
+            ;;
+        v)
+            # Turn on the verbose flag
+            VERBOSE=1
+            ;;
+        h)
+            # Turn on the long usage flag
+            LONGUSAGE=1
+            ;;
+        ?)
+            # Print the usage message if the option is unrecognized
+            usage
+            quit 1
+    esac
+done
+
+# Check if the user provided an alternate student IDs file, or if the default should be used
+if (( $USE_DEFAULT_STUDENTS_FILE )); then
+    # The default is to use every student in the classlist.
+    # Remove comments, get second field of each line (userid), get first 8 chars of each userid
+    # odyssey classlist --no-header | cut -d, -f2 | cut -c1-8 > $STUDENTS
+    odyssey classlist --no-header > $STUDENTS
+    # This file is temporary and gets removed at the end of the script (see the "quit" subroutine)
+fi
+
+# Download best ontime marks for a project, using the default or given student ID list
+if [[ -n "$DOWNLOAD" ]]; then
+    if (( $USE_DEFAULT_DEST_PATH )); then
+        DEST_PATH=$SOURCE_FILE_PATH
+    fi
+    mkdir -p $DEST_PATH
+    python3 $SCRIPT_DIR/marm2.py download $DOWNLOAD $STUDENTS $DEST_PATH $VERBOSE
+    quit 0
+fi
+
+# Download best ontime marks for a project or assignment, using the default or given student ID list
+if [[ -n "$MARKS" ]]; then
+    if (( $USE_DEFAULT_DEST_PATH )); then
+        DEST_PATH=$MARMOSET_RESULT_PATH
+    fi
+    mkdir -p $DEST_PATH
+    python3 $SCRIPT_DIR/marm2.py marks $MARKS $STUDENTS $DEST_PATH $VERBOSE
+    quit 0
+fi
+
+if [[ -n "$OUTOF" ]]; then
+    python3 $SCRIPT_DIR/marm2.py outof $OUTOF
+    quit 0
+fi
+
+# If we get down here, the user didn't specify a valid option, or something weird happened
+usage
+quit 1
