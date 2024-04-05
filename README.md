@@ -33,7 +33,7 @@ The `edx` script is for managing term configurations, exemptions files, and gene
 
 ### Deatils Usage
 
-For more advanced features and options, refer to the help information (`-h`) provided by each script. Or read the user manual in the repo.
+For more advanced features and options, refer to the help information (`-h`) provided by each script. Or read the [user manual](user_manual.pdf) in the repo.
 
 ## Contributing
 
