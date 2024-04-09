@@ -62,7 +62,7 @@ def diff(old_result, new_result, classlist):
             old_score = old_scores[uw_id].get(assignment, "Missing")
             new_score = new_scores[uw_id].get(assignment, "Missing")
             if old_score != new_score:
-                 print(f"[{uw_id:<10} - {assignment}] {old_score} -> {new_score}")
+                 print(f"[{uw_id:<8} - {assignment:<16}] {old_score} -> {new_score}")
 
 
 def main():
