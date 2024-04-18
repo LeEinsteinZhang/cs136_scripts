@@ -19,6 +19,7 @@ create_link() {
         if [[ "$choice" == "Y" || "$choice" == "y" ]]; then
             # Update the link
             ln -sf "$src" "$dst"
+            chmod +x "$dst"
             echo "Updated $dst"
         else
             # Ask for renaming
@@ -27,6 +28,7 @@ create_link() {
                 read -p "Enter new name: " new_name
                 local new_dst="$HOME/bin/$new_name"
                 ln -s "$src" "$new_dst"
+                chmod +x "$new_dst"
                 echo "Created $new_dst"
                 eval $cmd_name_ref='$new_name' # Update the command name variable
             else
