@@ -13,12 +13,13 @@ create_link() {
     local cmd_name_ref=$2
     local dst="$HOME/bin/${!cmd_name_ref}" # Use indirect reference to get the value of the name variable
     # Check if the destination link already exists
-    if [ -e "$dst" ]; then
+    if [[ -L "$dst" || -e "$dst" ]]; then
         # Ask the user whether to replace the existing file
         read -p "$dst already exists. Do you want to update it? (y/n) " choice
         if [[ "$choice" == "Y" || "$choice" == "y" ]]; then
             # Update the link
-            ln -sf "$src" "$dst"
+            rm "$dst"
+            ln -s "$src" "$dst"
             chmod +x "$dst"
             echo "Updated $dst"
         else
