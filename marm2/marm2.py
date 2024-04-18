@@ -25,6 +25,8 @@ import re
 # Grace Period in minutes
 GRACE_PERIOD = 1  # MINUTES
 
+VALID_TYPE = ['a', 'lab']
+
 # ====================================================================
 # FOLLOWING IS ENV VARIABLES
 # ====================================================================
@@ -250,7 +252,10 @@ def marks(assn: str, file: str, dest: str, verbose: bool):
         project_name = project['project_number']
         ontime_date = project['ontime']
         deadline = ontime_date + timedelta(minutes=GRACE_PERIOD)
-        project_type = re.split(r'\d+', project_name)[0].upper()
+        project_type = (re.split(r'\d+', project_name)[0].upper()).lower()
+        if project_type not in VALID_TYPE:
+            continue
+
         current_assn_num = int(project_name[len(project_type)])
 
         if current_assn_num != assn_num:
