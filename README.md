@@ -21,6 +21,8 @@ This project includes two scripts: `marm2` and `edx`, which are designed for dow
 
 3. Follow the prompts. If `~/bin/edx` or `~/bin/marm2` already exists, `setup.sh` will ask if you want to replace them. If you choose not to replace, it will also offer the option to rename these links.
 
+4. Call `edx` module with flag `-i` to initialize the edx repo.
+
 ## Script Instruction
 
 ### marm2 Script
