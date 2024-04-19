@@ -3,8 +3,6 @@
 # such as generate edx_marks.csv file, with Marmoset and Markus mark download
 # Original version by Le Zhang CS 136 (Winter 2024)
 
-export HOME=/u/$(whoami)/
-
 # get termcode and year
 CURR_TERMCODE=$(/u/isg/bin/termcode)
 CURR_SESSION=$(/u/isg/bin/termcode -l | awk '{print tolower(substr($0, 1, 1))}')
@@ -13,10 +11,10 @@ CURR_YEAR=$(/u/isg/bin/termcode -l | awk '{print substr($0, length-1, length)}')
 # get current term repo path
 SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 TERM_FOLDER="${CURR_TERMCODE}_${CURR_SESSION}${CURR_YEAR}"
-PATH_CURRTERM="${HOME}marks/current_term"
-PATH_TERM_DATA="${HOME}marks/past_terms/${TERM_FOLDER}"
+PATH_CURRTERM="$HOME/marks/current_term"
+PATH_TERM_DATA="$HOME/marks/past_terms/$TERM_FOLDER"
 PATH_MARMOSET="$PATH_TERM_DATA/marmoset_result"
-PATH_CLASSLIST="${PATH_TERM_DATA}/classlist.csv"
+PATH_CLASSLIST="$PATH_TERM_DATA/classlist.csv"
 PATH_DEFAULT_CONFIG="$SCRIPT_DIR/default_files/default_config"
 PATH_CONFIG="$PATH_TERM_DATA/config.csv"
 PATH_DEFAULT_REMARKS="$SCRIPT_DIR/default_files/default_remarks.csv"
@@ -25,6 +23,8 @@ PATH_DEFAULT_EXEMPTIONS="$SCRIPT_DIR/default_files/default_exemptions.csv"
 PATH_EXEMPTIONS="$PATH_TERM_DATA/exemptions.csv"
 
 current_time=$(date +"%Y%m%d_%H%M%S")
+existing_link=$(readlink -f "$PATH_CURRTERM")
+existing_folder=$(basename "$existing_link")
 
 # initialize term repo
 init() {
@@ -71,8 +71,6 @@ init() {
     # set new current link to data folder
     if [ -e "$PATH_CURRTERM" ]; then
         # Check if the existing symlink points to the correct term data folder
-        existing_link=$(readlink -f "$PATH_CURRTERM")
-        existing_folder=$(basename "$existing_link")
         if [ "$existing_folder" != "$TERM_FOLDER" ]; then
             echo "$PATH_TERM_DATA"
             rm -r "$PATH_CURRTERM/log"
@@ -88,7 +86,33 @@ init() {
     fi
 }
 
-# reset term repo
+# check the term folder intial status
+term_check() {
+    if [ -e "$PATH_CURRTERM" ]; then
+        # Check if the existing symlink points to the correct term data folder
+        if [ "$existing_folder" != "$TERM_FOLDER" ]; then
+            echo "$TERM_FOLDER not intialized"
+            read -p "Do you want to initial it now? (y/n) " init_choice
+            if [[ "$init_choice" == "Y" || "$init_choice" == "y" ]]; then
+                init
+            else
+                echo "Call initial function first [edx -i]"
+                exit 1
+            fi
+        fi
+    else
+        echo "$TERM_FOLDER not intialized"
+        echo "Call init function first"
+        exit 1
+    fi
+}
+
+# get new class list
+get_new_classlist() {
+    odyssey classlist --no-header > $PATH_CLASSLIST
+}
+
+# use vim to edit remarks
 remarks() {
     if [ ! -f "$PATH_REMARKS" ]; then
         init
@@ -96,6 +120,7 @@ remarks() {
     vim $PATH_REMARKS
 }
 
+# use vim to edit config
 config() {
     if [ ! -f "$PATH_CONFIG" ]; then
         init
@@ -103,6 +128,7 @@ config() {
     vim $PATH_CONFIG
 }
 
+# use vim to edit exemption file
 exemptions() {
     if [ ! -f "$PATH_EXEMPTIONS" ]; then
         init
@@ -110,8 +136,9 @@ exemptions() {
     vim $PATH_EXEMPTIONS
 }
 
+# update marmoset results
 update() {
-    odyssey classlist --no-header > $PATH_CLASSLIST
+    get_new_classlist
     
     if [[ -z "$1" ]]; then
         marm2 -v -m 0
@@ -123,9 +150,9 @@ update() {
     else
         echo "Invalid option for -u. Use '-u -a' for all, '-u' for current assignment to assignment 9, or '-d [number]' for a specific one."
     fi
-
 }
 
+# get latest assignment tests setup
 outof() {
     if [[ -z "$1" ]]; then
         marm2 -o c
@@ -141,12 +168,14 @@ outof() {
 # generate stats.txt to current term folder
 stats() {
     echo "Generating stats.txt"
-    python3 /u2/cs136/bin/cron/stats.py > $PATH_TERM_DATA/stats.txt
+    python3 /u/cs136/bin/cron/stats.py > $PATH_CURRTERM/stats.txt
     echo "stats.txt Generated"
 }
 
 # generate edx_marks.csv file in current term folder
 generate() {
+    get_new_classlist
+
     # make a backup of edx_marks.csv
     edx_path="$PATH_TERM_DATA/edx_marks.csv"
     log_path="$PATH_TERM_DATA/log/$current_time"
@@ -163,6 +192,8 @@ generate() {
     python3 ${SCRIPT_DIR}/modules/edx_diff.py $backup_path $edx_path $PATH_CLASSLIST > $log_path
 }
 
+# main function
+term_check
 case "$1" in
     -c)
         config
