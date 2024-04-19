@@ -46,6 +46,11 @@ create_link() {
 # Get the script path
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+# add execute permission
+chmod +x "$script_dir/edx/modules/edx_diff.py"
+chmod +x "$script_dir/edx/modules/edx_generater.py"
+chmod +x "$script_dir/marm2/marm2.py"
+
 # Main function calls
 create_link "$script_dir/edx/edx" "edx"
 create_link "$script_dir/marm2/marm2" "marm2"

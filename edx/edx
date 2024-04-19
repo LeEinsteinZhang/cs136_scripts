@@ -68,12 +68,23 @@ init() {
         echo "exemptions.csv file already copied for $CURR_TERMCODE."
     fi
 
-    # copy exemptions
+    # set new current link to data folder
     if [ -e "$PATH_CURRTERM" ]; then
-        rm $PATH_CURRTERM
-        ln -s "$PATH_TERM_DATA" "$PATH_CURRTERM"
+        # Check if the existing symlink points to the correct term data folder
+        existing_link=$(readlink -f "$PATH_CURRTERM")
+        existing_folder=$(basename "$existing_link")
+        if [ "$existing_folder" != "$TERM_FOLDER" ]; then
+            echo "$PATH_TERM_DATA"
+            rm -r "$PATH_CURRTERM/log"
+            rm "$PATH_CURRTERM"
+            ln -s "$PATH_TERM_DATA" "$PATH_CURRTERM"
+            echo "Updated symlink to point to the correct term data folder."
+        else
+            echo "Already initialized."
+        fi
     else
         ln -s "$PATH_TERM_DATA" "$PATH_CURRTERM"
+        echo "Created a new symlink for the term data folder."
     fi
 }
 
