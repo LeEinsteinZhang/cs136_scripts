@@ -178,18 +178,24 @@ generate() {
 
     # make a backup of edx_marks.csv
     edx_path="$PATH_TERM_DATA/edx_marks.csv"
-    log_path="$PATH_TERM_DATA/log/$current_time"
-    mkdir -p $log_path
-    backup_path="$log_path/edx_marks.csv"
-    log_path="$log_path/diff.txt"
     if [ -f "$edx_path" ]; then
+        # define log path
+        log_path="$PATH_TERM_DATA/log/$current_time"
+        mkdir -p $log_path
+        backup_path="$log_path/edx_marks.csv"
+        log_path="$log_path/diff.txt"
+
         mv "$edx_path" "$backup_path"
+
+        # generate new edx_marks.csv
+        python3 ${SCRIPT_DIR}/modules/edx_generater.py
+
+        # Run edx_diff.py check the difference
+        python3 ${SCRIPT_DIR}/modules/edx_diff.py $backup_path $edx_path $PATH_CLASSLIST > $log_path
+    else
+        # generate new edx_marks.csv
+        python3 ${SCRIPT_DIR}/modules/edx_generater.py
     fi
-
-    # generate edx_marks.csv
-    python3 ${SCRIPT_DIR}/modules/edx_generater.py
-
-    python3 ${SCRIPT_DIR}/modules/edx_diff.py $backup_path $edx_path $PATH_CLASSLIST > $log_path
 }
 
 # main function

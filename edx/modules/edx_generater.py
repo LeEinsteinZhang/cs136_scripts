@@ -56,8 +56,8 @@ CURR_YEAR = subprocess.check_output(CURR_YEAR_CMD, shell=True).decode('utf-8').s
 
 # Path will be used
 TERM_FOLDER = f"{CURR_TERMCODE}_{CURR_SESSION}{CURR_YEAR}"
-PATH_CURRTERM = f"{HOME}marks/current_term/"
-PATH_TERM_DATA = f"{HOME}marks/past_terms/{TERM_FOLDER}"
+PATH_CURRTERM = f"{HOME}/marks/current_term/"
+PATH_TERM_DATA = f"{HOME}/marks/past_terms/{TERM_FOLDER}"
 PATH_A0_RESULT = f"{PATH_TERM_DATA}/a0_result.txt"
 PATH_CLASSLIST = f"{PATH_TERM_DATA}/classlist.csv"
 PATH_CONFIG = f"{PATH_TERM_DATA}/config.csv"
