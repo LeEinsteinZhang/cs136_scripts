@@ -24,6 +24,7 @@ from openpyxl import load_workbook
 UNSTYLE_ASSIGNMENTS_NUM = 5
 ASSIGNMENTS_NUM = 10
 EXAM_NUM = 1
+ICLICKER_WEIGHT = 5
 
 # helpful convert
 TOTAL_ASSESSMENT = UNSTYLE_ASSIGNMENTS_NUM + ASSIGNMENTS_NUM + EXAM_NUM
@@ -64,6 +65,7 @@ PATH_CONFIG = f"{PATH_TERM_DATA}/config.csv"
 PATH_EDX_MARKS = f"{PATH_TERM_DATA}/edx_marks.csv"
 PATH_EXEMPTION = f"{PATH_TERM_DATA}/exemptions.csv"
 PATH_GRADEBOOK = f"{PATH_TERM_DATA}/gradebook/gradebook.xlsx"
+PATH_ICLICKER = f"{PATH_TERM_DATA}/clicker_result/final_grades.csv"
 PATH_MARKUS_RESULT = f"{PATH_TERM_DATA}/markus_result"
 PATH_MARMOSET_RESULT = f"{PATH_TERM_DATA}/marmoset_result"
 PATH_MIDTERM_RESULT = f"{PATH_TERM_DATA}/midterm"
@@ -598,7 +600,27 @@ def generate_edx_marks(edx_marks_path: str, grade_book_path: str, marks_dict: di
         if sheet_name in book.sheetnames:
             del book[sheet_name]
         df.to_excel(writer, sheet_name=sheet_name, index=False)
+    
+    # Assignment iclicker marks for grade book
+    sheet_name = 'iClicker'
+    rows = []
+    with open(PATH_ICLICKER, mode='r') as infile:
+        reader = csv.reader(infile)
+        for row in reader:
+            uw_id = row[0]
+            if uw_id in marks_dict:
+                grades = float(row[1])
+                row = [uw_id, grades, grades / ICLICKER_WEIGHT * 100]
+                rows.append(row)
+            else:
+                notin.append(uw_id)
+    df = pd.DataFrame(rows, columns=['student', 'Marks', 'Total (100)'])
 
+    with pd.ExcelWriter(grade_book_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+        book = writer.book
+        if sheet_name in book.sheetnames:
+            del book[sheet_name]
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
     print(">> Generated gradebook.xlsx")
 
 
