@@ -602,25 +602,24 @@ def generate_edx_marks(edx_marks_path: str, grade_book_path: str, marks_dict: di
         df.to_excel(writer, sheet_name=sheet_name, index=False)
     
     # Assignment iclicker marks for grade book
-    sheet_name = 'iClicker'
-    rows = []
-    with open(PATH_ICLICKER, mode='r') as infile:
-        reader = csv.reader(infile)
-        for row in reader:
-            uw_id = row[0]
-            if uw_id in marks_dict:
-                grades = float(row[1])
-                row = [uw_id, grades, grades / ICLICKER_WEIGHT * 100]
-                rows.append(row)
-            else:
-                notin.append(uw_id)
-    df = pd.DataFrame(rows, columns=['student', 'Marks', 'Total (100)'])
+    if os.path.exists(PATH_ICLICKER):
+        sheet_name = 'iClicker'
+        rows = []
+        with open(PATH_ICLICKER, mode='r') as infile:
+            reader = csv.reader(infile)
+            for row in reader:
+                uw_id = row[0]
+                if uw_id in marks_dict:
+                    grades = float(row[1])
+                    row = [uw_id, grades, grades / ICLICKER_WEIGHT * 100]
+                    rows.append(row)
+        df = pd.DataFrame(rows, columns=['student', 'Marks', 'Total (100)'])
 
-    with pd.ExcelWriter(grade_book_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
-        book = writer.book
-        if sheet_name in book.sheetnames:
-            del book[sheet_name]
-        df.to_excel(writer, sheet_name=sheet_name, index=False)
+        with pd.ExcelWriter(grade_book_path, engine='openpyxl', mode='a', if_sheet_exists='overlay') as writer:
+            book = writer.book
+            if sheet_name in book.sheetnames:
+                del book[sheet_name]
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
     print(">> Generated gradebook.xlsx")
 
 
