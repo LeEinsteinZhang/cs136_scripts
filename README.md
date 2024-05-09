@@ -1,4 +1,4 @@
-# Universitu of Waterloo Course Account Marks Scripts
+# University of Waterloo Course Account Marks Scripts
 
 This project includes two scripts: `marm2` and `edx`, which are designed for downloading and managing grades and submissions for academic courses.
 
